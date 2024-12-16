@@ -127,5 +127,9 @@ Contributions are welcome! Please follow these steps:
 
 ---
 
-## Screenshots
-
+## Demo
+<div style="display: flex; justify-content: center; align-items: center;">
+    <video class="as" src="https://github.com/user-attachments/assets/91aa5c37-2742-40d8-ac22-4c1ba695a689" controls="controls" style="max-width: 100%;">
+        Your browser does not support the video tag.
+    </video>
+</div>
