@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Date Sheet Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        #coursesContainer {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            background: #f9f9f9;
+        }
+        .loader {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin: 10px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #datesheetContainer {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            background: #ffffff;
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <div class="container py-5">
+        <h1 class="text-center mb-4">Date Sheet Generator</h1>
+        <div class="card p-4">
+            <!-- File Upload -->
+            <form id="uploadForm">
+                <div class="mb-3">
+                    <label for="file" class="form-label">Upload Date Sheet (Excel)</label>
+                    <input type="file" class="form-control" id="file" name="file" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+            <div class="loader" id="uploadLoader"></div>
+
+            <!-- Course Selection -->
+            <div id="courseSelection" class="mt-4" style="display: none;">
+                <h3>Select Courses</h3>
+                <input type="text" id="courseSearch" class="form-control mb-2" placeholder="Search courses...">
+                <div id="coursesContainer" class="list-group"></div>
+                <button id="generateBtn" class="btn btn-success mt-3">Generate Date Sheet</button>
+            </div>
+        </div>
+
+        <!-- Date Sheet Display -->
+        <div id="datesheetContainer">
+            <h3>Generated Date Sheet</h3>
+            <table id="datesheetTable">
+                <thead>
+                    <tr>
+                        <th>Day</th>
+                        <th>Date</th>
+                        <th>Time</th>
+                        <th>Code</th>
+                        <th>Course Name</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows will be dynamically added here -->
+                </tbody>
+            </table>
+            <button id="saveAsImageBtn" class="btn btn-primary mt-3">Save as Image</button>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function() {
+            let uploadedFilePath = '';
+
+            // File upload
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                $('#uploadLoader').show(); // Show loader
+                const formData = new FormData(this);
+                $.ajax({
+                    url: '/upload',
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function(response) {
+                        $('#uploadLoader').hide(); // Hide loader
+                        $('#coursesContainer').empty();
+                        uploadedFilePath = response.file_path; // Store the uploaded file path
+                        response.courses.forEach(course => {
+                            $('#coursesContainer').append(`
+                                <div class="form-check">
+                                    <input class="form-check-input course-checkbox" type="checkbox" value="${course.Code} - ${course['Course Name']}">
+                                    <label class="form-check-label">${course.Code} - ${course['Course Name']}</label>
+                                </div>
+                            `);
+                        });
+                        $('#courseSelection').show();
+                    },
+                    error: function() {
+                        $('#uploadLoader').hide(); // Hide loader
+                        alert('Failed to upload file. Please try again.');
+                    }
+                });
+            });
+
+            // Course search
+            $('#courseSearch').on('input', function() {
+                const query = $(this).val().toLowerCase();
+                $('.form-check').each(function() {
+                    const text = $(this).text().toLowerCase();
+                    $(this).toggle(text.includes(query));
+                });
+            });
+
+            // Generate date sheet
+            $('#generateBtn').on('click', function() {
+                const selectedCourses = $('.course-checkbox:checked').map(function() {
+                    return $(this).val();
+                }).get();
+                if (selectedCourses.length === 0) {
+                    alert('Please select at least one course.');
+                    return;
+                }
+
+                // Fetch data from the server
+                $.ajax({
+                    url: '/generate',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ selected_courses: selectedCourses, file_path: uploadedFilePath }),
+                    success: function(response) {
+                        const tbody = $('#datesheetTable tbody');
+                        tbody.empty(); // Clear existing rows
+                        response.data.forEach(row => {
+                            tbody.append(`
+                                <tr>
+                                    <td>${row.Day}</td>
+                                    <td>${row.Date}</td>
+                                    <td>${row.Time}</td>
+                                    <td>${row.Code}</td>
+                                    <td>${row['Course Name']}</td>
+                                </tr>
+                            `);
+                        });
+                        $('#datesheetContainer').show();
+                    },
+                    error: function() {
+                        alert('Failed to generate date sheet. Please try again.');
+                    }
+                });
+            });
+
+            // Save as image
+            $('#saveAsImageBtn').on('click', function() {
+                html2canvas(document.querySelector("#datesheetTable")).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = 'datesheet.png';
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            });
+        });
+    </script>
+</body>
+</html>
